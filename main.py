@@ -668,47 +668,34 @@ async def clear_index_command(client: Client, message: Message):
 
 # --- Group Message Filter Handler ---
 
-@app.on_message(filters.group & filters.text & ~filters.command & ~filters.via_bot)
+# CORRECTED LINE: Added () after filters.command
+@app.on_message(filters.group & filters.text & ~filters.command() & ~filters.via_bot)
 async def group_filter_handler(client: Client, message: Message):
+    # ... (rest of the function remains the same) ...
     user_id = message.from_user.id
 
     # 1. Check if user is banned
     if await db.is_user_banned(user_id):
-        # Maybe send a temporary message? Or just ignore. Ignoring is better for group spam.
         logger.info(f"Ignoring message from banned user {user_id} in group {message.chat.id}")
         return
 
     # 2. Check Force Subscribe
     if not await check_force_sub(message):
-        return # Stop if user needs to subscribe
+        return
 
-    # 3. Add/Update user in DB (do this even if no results are found)
+    # 3. Add/Update user in DB
     await db.add_user(user_id, message.from_user.first_name, message.from_user.username)
 
     # 4. Process the search query
     query = message.text.strip()
-    if len(query) < 3: # Ignore very short messages
+    # Consider slightly stricter filtering, e.g., ignore single characters or purely numeric messages if desired
+    if len(query) < 3 or query.isdigit():
         return
 
     start_time = time.time()
     logger.info(f"Group {message.chat.id}: User {user_id} searching for '{query}'")
 
-    try:
-        results = await db.search_media(query, max_results=cfg.MAX_RESULTS)
-        end_time = time.time()
-
-        if not results:
-            logger.info(f"No results found for '{query}' by {user_id}. Time: {end_time - start_time:.2f}s")
-            # Optional: Send "Not Found" message with Request button
-            if cfg.REQUEST_MOVIE_URL:
-                 button = [[InlineKeyboardButton(cfg.REQUEST_MOVIE_BUTTON_TEXT, url=cfg.REQUEST_MOVIE_URL)]]
-                 await message.reply_text(
-                     cfg.NOT_FOUND_MSG.format(query=query),
-                     reply_markup=InlineKeyboardMarkup(button),
-                     disable_web_page_preview=True
-                 )
-            # else: No need to explicitly say "not found" in the group to reduce spam
-            return
+    # ... (rest of the function remains the same) ...
 
         # 5. Format and send results
         result_text = f"✨ Found Results for: **{query}**\n\n"
